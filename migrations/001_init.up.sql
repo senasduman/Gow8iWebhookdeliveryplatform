@@ -1,0 +1,8 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE TABLE organizations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE api_keys (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), organization_id UUID NOT NULL REFERENCES organizations(id), key_hash CHAR(64) NOT NULL UNIQUE, name TEXT NOT NULL, revoked_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE webhook_endpoints (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), organization_id UUID NOT NULL REFERENCES organizations(id), url TEXT NOT NULL, secret_ciphertext BYTEA NOT NULL, active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE events (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), organization_id UUID NOT NULL REFERENCES organizations(id), event_type TEXT NOT NULL, payload JSONB NOT NULL, idempotency_key TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(organization_id,idempotency_key));
+CREATE TYPE delivery_status AS ENUM ('pending','processing','retrying','delivered','failed');
+CREATE TABLE deliveries (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), organization_id UUID NOT NULL REFERENCES organizations(id), event_id UUID NOT NULL REFERENCES events(id), endpoint_id UUID NOT NULL REFERENCES webhook_endpoints(id), status delivery_status NOT NULL DEFAULT 'pending', attempts INT NOT NULL DEFAULT 0, next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(), http_status INT, response_body TEXT, completed_at TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(event_id,endpoint_id));
+CREATE INDEX deliveries_queue_idx ON deliveries(status,next_attempt_at) WHERE status IN ('pending','retrying');

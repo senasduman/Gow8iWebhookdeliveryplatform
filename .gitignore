@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+
+bin/
+dist/
+coverage.out
+
+*.local
+*.log
